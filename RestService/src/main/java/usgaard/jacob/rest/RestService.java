@@ -6,10 +6,6 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,97 +27,11 @@ public class RestService {
 
 	protected String fieldsParameterName = DEFAULT_PARAMETER_NAME_FIELDS;
 
-	private static ParameterMapper queryParameterMapper = new ParameterMapper() {
+	private static ParameterMapper queryParameterMapper = new QueryParameterMapper();
 
-		@Override
-		public Map<String, List<Object>> generateParameterMap(Object object) {
-			String queryString = (String) object;
-			String[] parameterPairs = queryString.split("\\&");
-			Map<String, List<Object>> parameterMap = new HashMap<>();
-			if (parameterPairs == null) {
-				return parameterMap;
-			}
+	private static ParameterMapper servletRequestParameterMapper = new ServletRequestParameterMapper();
 
-			for (String parameterPair : parameterPairs) {
-				String[] nameValueArray = parameterPair.split("\\=", 1);
-				if (nameValueArray.length != 2) {
-					continue;
-				}
-
-				String parameterName = nameValueArray[0];
-				String parameterValue = nameValueArray[1];
-
-				List<Object> parameterValues = parameterMap.get(parameterName);
-				if (parameterValues == null) {
-					parameterValues = new LinkedList<>();
-				}
-
-				parameterValues.add(parameterValue);
-				parameterMap.put(parameterName, parameterValues);
-			}
-
-			return parameterMap;
-		}
-	};
-
-	private ParameterMapper servletRequestParameterMapper = new ParameterMapper() {
-
-		@Override
-		public Map<String, List<Object>> generateParameterMap(Object object) {
-			ServletRequest servletRequest = (ServletRequest) object;
-			Map<String, List<Object>> parameterMap = new HashMap<>();
-
-			Enumeration<String> parameterNames = servletRequest.getParameterNames();
-			if (parameterNames == null) {
-				return parameterMap;
-			}
-
-			for (String parameterName : Collections.list(servletRequest.getParameterNames())) {
-				parameterMap.put(parameterName,
-						Arrays.asList((Object[]) servletRequest.getParameterValues(parameterName)));
-			}
-
-			return parameterMap;
-		}
-	};
-
-	private static TypeGenerator defaultTypeGenerator = new TypeGenerator() {
-
-		@Override
-		public Object generateType(Class<?> clazz, Object object) {
-			if (clazz == null || object == null) {
-				return null;
-			}
-			Class<?> type = clazz.getClass();
-
-			if (type.equals(String.class)) {
-				return object.toString();
-			}
-
-			if (type.equals(Integer.class) || type.equals(int.class)) {
-				return new Integer(object.toString());
-			}
-
-			if (type.equals(Long.class) || type.equals(long.class)) {
-				return new Long(object.toString());
-			}
-
-			if (type.equals(Double.class) || type.equals(double.class)) {
-				return new Double(object.toString());
-			}
-
-			if (type.equals(Float.class) || type.equals(float.class)) {
-				return new Float(object.toString());
-			}
-
-			if (type.equals(object.getClass())) {
-				return object;
-			}
-
-			return null;
-		}
-
-	};
+	private static TypeGenerator defaultTypeGenerator = new DefaultTypeGenerator();
 
 	public RestRequest convert(String query, Class<?> clazz) throws IntrospectionException {
 		Map<String, List<Object>> parameterMap = queryParameterMapper.generateParameterMap(query);
@@ -254,13 +164,5 @@ public class RestService {
 
 	public void setFieldsParameterName(String fieldsParameterName) {
 		this.fieldsParameterName = fieldsParameterName;
-	}
-
-	public interface ParameterMapper {
-		public Map<String, List<Object>> generateParameterMap(Object object);
-	}
-
-	public interface TypeGenerator {
-		public Object generateType(Class<?> clazz, Object object);
 	}
 }
