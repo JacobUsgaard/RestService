@@ -116,7 +116,6 @@ public class RestService {
 		Map<PropertyDescriptor, List<Object>> searchValues = restRequest.getSearchValues();
 		List<Object> values = null;
 		for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
-			System.out.println("propertyDescriptor: " + propertyDescriptor.getName());
 			Class<?> parameterType = propertyDescriptor.getPropertyType();
 			Method writeMethod = propertyDescriptor.getWriteMethod();
 			String parameterName = propertyDescriptor.getName();
