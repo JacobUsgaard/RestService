@@ -2,8 +2,6 @@ package usgaard.jacob.rest;
 
 import static org.junit.Assert.fail;
 
-import java.beans.IntrospectionException;
-
 import javax.servlet.ServletRequest;
 
 import org.junit.Assert;
@@ -28,7 +26,7 @@ public class RestServiceTest {
 
 		try {
 			restRequest = restService.convert(servletRequest, MockObject.class);
-		} catch (IntrospectionException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			fail();
 		}

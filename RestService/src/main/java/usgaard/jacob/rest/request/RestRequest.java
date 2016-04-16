@@ -14,8 +14,8 @@ public class RestRequest {
 	private Sort sort = Sort.ASCENDING;
 	private int start = 0;
 	private int limit = 10;
-	private Map<PropertyDescriptor, List<Object>> searchValues = new HashMap<>();
-	private Map<PropertyDescriptor, Sort> fields = new HashMap<>();
+	private Map<PropertyDescriptor, List<Object>> searchValues = new HashMap<PropertyDescriptor, List<Object>>();
+	private Map<PropertyDescriptor, Sort> fields = new HashMap<PropertyDescriptor, Sort>();
 
 	public Class<?> getMappedObject() {
 		return mappedObject;

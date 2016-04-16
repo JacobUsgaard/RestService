@@ -6,20 +6,29 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 import javax.servlet.ServletRequest;
 
+import usgaard.jacob.rest.exception.ParameterException;
 import usgaard.jacob.rest.request.RestRequest;
 import usgaard.jacob.rest.request.RestRequest.Sort;
 
 public class RestService {
-	public static final String DEFAULT_PARAMETER_NAME_START = "start";
+	private static final String DEFAULT_PARAMETER_NAME_START = "start";
 
-	public static final String DEFAULT_PARAMETER_NAME_LIMIT = "limit";
+	private static final String DEFAULT_PARAMETER_NAME_LIMIT = "limit";
 
-	public static final String DEFAULT_PARAMETER_NAME_FIELDS = "fields";
+	private static final String DEFAULT_PARAMETER_NAME_FIELDS = "fields";
+
+	private static final int DEFAULT_PARAMETER_START = 0;
+
+	private static final int DEFAULT_PARAMETER_LIMIT = 10;
 
 	protected String startParameterName = DEFAULT_PARAMETER_NAME_START;
 
@@ -27,34 +36,123 @@ public class RestService {
 
 	protected String fieldsParameterName = DEFAULT_PARAMETER_NAME_FIELDS;
 
-	private static ParameterMapper queryParameterMapper = new QueryParameterMapper();
+	protected TypeGenerator defaultTypeGenerator = typeGenerator;
 
-	private static ParameterMapper servletRequestParameterMapper = new ServletRequestParameterMapper();
+	private static ParameterMapper queryParameterMapper = new ParameterMapper() {
 
-	private static TypeGenerator defaultTypeGenerator = new DefaultTypeGenerator();
+		@Override
+		public Map<String, List<Object>> generateParameterMap(Object object) {
+			String queryString = (String) object;
+			String[] parameterPairs = queryString.split("\\&");
+			Map<String, List<Object>> parameterMap = new HashMap<String, List<Object>>();
+			if (parameterPairs == null) {
+				return parameterMap;
+			}
 
-	public RestRequest convert(String query, Class<?> clazz) throws IntrospectionException {
+			for (String parameterPair : parameterPairs) {
+				String[] nameValueArray = parameterPair.split("\\=", 1);
+				if (nameValueArray.length != 2) {
+					continue;
+				}
+
+				String parameterName = nameValueArray[0];
+				String parameterValue = nameValueArray[1];
+
+				List<Object> parameterValues = parameterMap.get(parameterName);
+				if (parameterValues == null) {
+					parameterValues = new LinkedList<Object>();
+				}
+
+				parameterValues.add(parameterValue);
+				parameterMap.put(parameterName, parameterValues);
+			}
+
+			return parameterMap;
+		}
+	};
+
+	private ParameterMapper servletRequestParameterMapper = new ParameterMapper() {
+
+		@Override
+		public Map<String, List<Object>> generateParameterMap(Object object) {
+			ServletRequest servletRequest = (ServletRequest) object;
+			Map<String, List<Object>> parameterMap = new HashMap<String, List<Object>>();
+
+			Enumeration<String> parameterNames = servletRequest.getParameterNames();
+			if (parameterNames == null) {
+				return parameterMap;
+			}
+
+			for (String parameterName : Collections.list(servletRequest.getParameterNames())) {
+				parameterMap.put(parameterName,
+						Arrays.asList((Object[]) servletRequest.getParameterValues(parameterName)));
+			}
+
+			return parameterMap;
+		}
+	};
+
+	private static TypeGenerator typeGenerator = new TypeGenerator() {
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public <T> T generateType(Class<T> clazz, Object object) {
+			if (clazz == null || object == null) {
+				return null;
+			}
+
+			if (clazz.equals(String.class)) {
+				return (T) object.toString();
+			}
+
+			if (clazz.equals(Integer.class) || clazz.equals(int.class)) {
+				return (T) new Integer(object.toString());
+			}
+
+			if (clazz.equals(Long.class) || clazz.equals(long.class)) {
+				return (T) new Long(object.toString());
+			}
+
+			if (clazz.equals(Double.class) || clazz.equals(double.class)) {
+				return (T) new Double(object.toString());
+			}
+
+			if (clazz.equals(Float.class) || clazz.equals(float.class)) {
+				return (T) new Float(object.toString());
+			}
+
+			if (clazz.equals(object.getClass())) {
+				return (T) object;
+			}
+
+			return null;
+		}
+	};
+
+	public RestRequest convert(String query, Class<?> clazz) throws IntrospectionException, ParameterException {
 		Map<String, List<Object>> parameterMap = queryParameterMapper.generateParameterMap(query);
 		return this.createRestRequest(clazz, parameterMap, defaultTypeGenerator);
 	}
 
-	public RestRequest convert(ServletRequest servletRequest, Class<?> clazz) throws IntrospectionException {
+	public RestRequest convert(ServletRequest servletRequest, Class<?> clazz)
+			throws IntrospectionException, ParameterException {
 		Map<String, List<Object>> parameterMap = servletRequestParameterMapper.generateParameterMap(servletRequest);
 		return this.createRestRequest(clazz, parameterMap, defaultTypeGenerator);
 	}
 
-	public RestRequest convert(Map<String, List<Object>> parameterMap, Class<?> clazz) throws IntrospectionException {
+	public RestRequest convert(Map<String, List<Object>> parameterMap, Class<?> clazz)
+			throws IntrospectionException, ParameterException {
 		return this.createRestRequest(clazz, parameterMap, defaultTypeGenerator);
 	}
 
 	public RestRequest convert(Object object, Class<?> clazz, ParameterMapper parameterMapper)
-			throws IntrospectionException {
+			throws IntrospectionException, ParameterException {
 		Map<String, List<Object>> parameterMap = parameterMapper.generateParameterMap(object);
 		return this.createRestRequest(clazz, parameterMap, defaultTypeGenerator);
 	}
 
 	public RestRequest convert(Object object, Class<?> clazz, ParameterMapper parameterMapper,
-			TypeGenerator typeGenerator) throws IntrospectionException {
+			TypeGenerator typeGenerator) throws IntrospectionException, ParameterException {
 		Map<String, List<Object>> parameterMap = parameterMapper.generateParameterMap(object);
 		if (typeGenerator == null) {
 			return this.createRestRequest(clazz, parameterMap, defaultTypeGenerator);
@@ -64,56 +162,65 @@ public class RestService {
 	}
 
 	protected RestRequest createRestRequest(Class<?> clazz, Map<String, List<Object>> parameterMap,
-			TypeGenerator typeGenerator) throws IntrospectionException {
+			TypeGenerator typeGenerator) throws IntrospectionException, ParameterException {
 		RestRequest restRequest = new RestRequest();
 
-		List<Object> limitValues = parameterMap.get(limitParameterName);
-		if (limitValues != null && limitValues.size() == 1) {
-			restRequest.setLimit(new Integer(limitValues.get(0).toString()));
-		} else if (limitValues != null && limitValues.size() > 1) {
-			// TODO throw error
-		}
+		restRequest.setLimit(this.getLimitParameter(parameterMap));
 
-		List<Object> startValues = parameterMap.get(startParameterName);
-		if (startValues != null && startValues.size() > 1) {
-			restRequest.setStart(new Integer(limitValues.get(0).toString()));
-		} else if (limitValues != null && limitValues.size() > 1) {
-			// TODO throw error
-		}
+		restRequest.setStart(this.getStartParameter(parameterMap));
 
+		PropertyDescriptor[] propertyDescriptors = Introspector.getBeanInfo(clazz).getPropertyDescriptors();
+
+		restRequest.setFields(this.getFieldsParameter(propertyDescriptors, parameterMap));
+
+		restRequest.setSearchValues(this.getSearchValues(propertyDescriptors, parameterMap));
+
+		return restRequest;
+	}
+
+	protected Map<PropertyDescriptor, Sort> getFieldsParameter(PropertyDescriptor[] propertyDescriptors,
+			Map<String, List<Object>> parameterMap) throws ParameterException {
 		List<Object> fieldsValues = parameterMap.get(fieldsParameterName);
+		Map<PropertyDescriptor, Sort> fieldsMap = new HashMap<PropertyDescriptor, Sort>();
 
-		List<PropertyDescriptor> propertyDescriptors = Arrays
-				.asList(Introspector.getBeanInfo(clazz).getPropertyDescriptors());
-		if (fieldsValues == null || (fieldsValues.size() == 1 && fieldsValues.get(0) == null)) {
+		if (fieldsValues == null) {
+			return fieldsMap;
+		} else if (fieldsValues.isEmpty()) {
 			for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
-				restRequest.getFields().put(propertyDescriptor, null);
+				fieldsMap.put(propertyDescriptor, null);
 			}
-		} else if (fieldsValues.size() == 1) {
-			String fieldsParameterValue = fieldsValues.get(0).toString();
-			String[] fields = fieldsParameterValue.split(",");
 
-			for (String field : fields) {
-				for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
-					String propertyName = field.replaceAll("(\\+|\\-)", "");
+			return fieldsMap;
+		} else if (fieldsValues.size() > 1) {
+			throw new ParameterException("Only one value allowed for special parameter: " + this.fieldsParameterName);
+		}
 
-					if (propertyName.equalsIgnoreCase(propertyDescriptor.getName())) {
-						Sort sort = null;
-						if (field.contains("+")) {
-							sort = Sort.ASCENDING;
-						} else if (field.contains("-")) {
-							sort = Sort.DESCENDING;
-						}
+		String fieldsParameterValue = typeGenerator.generateType(String.class, fieldsValues.get(0));
+		String[] fields = fieldsParameterValue.split(",");
 
-						restRequest.getFields().put(propertyDescriptor, sort);
+		for (String field : fields) {
+			for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
+				String propertyName = field.replaceAll("(\\+|\\-)", "");
+
+				if (propertyName.equalsIgnoreCase(propertyDescriptor.getName())) {
+					Sort sort = null;
+					if (field.contains("+")) {
+						sort = Sort.ASCENDING;
+					} else if (field.contains("-")) {
+						sort = Sort.DESCENDING;
 					}
+
+					fieldsMap.put(propertyDescriptor, sort);
 				}
 			}
-		} else {
-			// throw error
 		}
 
-		Map<PropertyDescriptor, List<Object>> searchValues = restRequest.getSearchValues();
+		return fieldsMap;
+	}
+
+	protected Map<PropertyDescriptor, List<Object>> getSearchValues(PropertyDescriptor[] propertyDescriptors,
+			Map<String, List<Object>> parameterMap) throws IntrospectionException {
+		Map<PropertyDescriptor, List<Object>> searchValues = new HashMap<PropertyDescriptor, List<Object>>();
 		List<Object> values = null;
 		for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
 			Class<?> parameterType = propertyDescriptor.getPropertyType();
@@ -125,20 +232,43 @@ public class RestService {
 			}
 
 			List<Object> parameterValues = parameterMap.get(parameterName);
-			if (parameterValues == null) {
+			if (parameterValues == null || parameterValues.isEmpty()) {
 				continue;
 			}
 
-			values = new ArrayList<>(parameterValues.size());
+			values = new ArrayList<Object>(parameterValues.size());
 			for (Object parameterValue : parameterValues) {
 				values.add(typeGenerator.generateType(parameterType, parameterValue));
 			}
 
 			searchValues.put(propertyDescriptor, values);
 		}
-		restRequest.setSearchValues(searchValues);
 
-		return restRequest;
+		return searchValues;
+	}
+
+	protected Integer getLimitParameter(Map<String, List<Object>> parameterMap) throws ParameterException {
+		List<Object> limitValues = parameterMap.get(limitParameterName);
+
+		if (limitValues == null || limitValues.isEmpty()) {
+			return DEFAULT_PARAMETER_LIMIT;
+		} else if (limitValues.size() > 1) {
+			throw new ParameterException("Only one value allowed for special parameter: " + this.limitParameterName);
+		}
+
+		return typeGenerator.generateType(Integer.class, limitValues.get(0));
+	}
+
+	protected Integer getStartParameter(Map<String, List<Object>> parameterMap) throws ParameterException {
+		List<Object> startValues = parameterMap.get(limitParameterName);
+
+		if (startValues == null || startValues.isEmpty()) {
+			return DEFAULT_PARAMETER_START;
+		} else if (startValues.size() > 1) {
+			throw new ParameterException("Only one value allowed for special parameter: " + this.startParameterName);
+		}
+
+		return typeGenerator.generateType(Integer.class, startValues.get(0));
 	}
 
 	public String getStartParameterName() {
@@ -163,5 +293,22 @@ public class RestService {
 
 	public void setFieldsParameterName(String fieldsParameterName) {
 		this.fieldsParameterName = fieldsParameterName;
+	}
+
+	public TypeGenerator getDefaultTypeGenerator() {
+		return defaultTypeGenerator;
+	}
+
+	public void setDefaultTypeGenerator(TypeGenerator defaultTypeGenerator) {
+		this.defaultTypeGenerator = defaultTypeGenerator;
+	}
+
+	public interface ParameterMapper {
+		public Map<String, List<Object>> generateParameterMap(Object object);
+	}
+
+	public interface TypeGenerator {
+		public <T> T generateType(Class<T> clazz, Object object);
+
 	}
 }

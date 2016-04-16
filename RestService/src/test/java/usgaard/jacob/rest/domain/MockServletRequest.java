@@ -18,7 +18,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 
 public class MockServletRequest implements ServletRequest {
-	private Map<String, String[]> parameters = new HashMap<>();
+	private Map<String, String[]> parameters = new HashMap<String, String[]>();
 
 	public MockServletRequest() {
 		parameters.put("age", new String[] { "10" });
