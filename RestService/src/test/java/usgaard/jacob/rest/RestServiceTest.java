@@ -15,7 +15,21 @@ public class RestServiceTest {
 
 	@Test
 	public void testConvertStringClassOfT() {
-		fail("Not yet implemented");
+		RestService restService = new RestService();
+		RestRequest restRequest = null;
+
+		try {
+			restRequest = restService.convert("age=10&name=Jacob Usgaard&fields=age+,name-", MockObject.class);
+		} catch (Exception e) {
+			e.printStackTrace();
+			fail();
+		}
+
+		Assert.assertNotNull(restRequest);
+		Assert.assertNotNull(restRequest.getSearchCriteria());
+		Assert.assertEquals(2, restRequest.getSearchCriteria().size());
+		Assert.assertNotNull(restRequest.getFields());
+		Assert.assertEquals(2, restRequest.getFields().size());
 	}
 
 	@Test
@@ -32,8 +46,8 @@ public class RestServiceTest {
 		}
 
 		Assert.assertNotNull(restRequest);
-		Assert.assertNotNull(restRequest.getSearchValues());
-		Assert.assertEquals(2, restRequest.getSearchValues().size());
+		Assert.assertNotNull(restRequest.getSearchCriteria());
+		Assert.assertEquals(2, restRequest.getSearchCriteria().size());
 		Assert.assertNotNull(restRequest.getFields());
 		Assert.assertEquals(2, restRequest.getFields().size());
 	}

@@ -1,7 +1,13 @@
 package usgaard.jacob.rest;
 
-import java.util.Map;
+import java.util.List;
 
+import usgaard.jacob.rest.RestService.ParameterMapping;
+
+/**
+ * @author Jacob
+ *
+ */
 public interface ParameterMapper {
-	public Map<String, String[]> generateParameterMap(Object object);
+	public List<ParameterMapping> generateParameterMappings(Object source);
 }
