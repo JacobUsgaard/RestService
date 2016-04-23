@@ -51,6 +51,12 @@ public class RestService {
 	private static int defaultLimit = 10;
 	private Integer start;
 	private Integer limit;
+	private static String defaultFieldsParameterName = "fields";
+	private static String defaultStartParameterName = "start";
+	private static String defaultLimitParameterName = "limit";
+	private String fieldsParameterName = defaultFieldsParameterName;
+	private String startParameterName = defaultStartParameterName;
+	private String limitParameterName = defaultLimitParameterName;
 
 	public enum Operator {
 		EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
@@ -74,9 +80,15 @@ public class RestService {
 				}
 			}
 
+			LOGGER.debug("fields parameter: {}, value: {}", fieldParameterIdentifier, fieldsValue);
+
 			if (fieldsValue == null) {
 				for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
+					if ("class".equals(propertyDescriptor.getName())) {
+						continue;
+					}
 					fieldsMap.put(propertyDescriptor, null);
+					LOGGER.debug("Field found: {}, sort: {}", propertyDescriptor.getName(), null);
 				}
 
 				return fieldsMap;
@@ -105,7 +117,6 @@ public class RestService {
 
 			return fieldsMap;
 		}
-
 	};
 
 	private final SearchCriteriaGenerator<PropertyDescriptor, Operator, Object> searchCriteriaGenerator = new SearchCriteriaGenerator<PropertyDescriptor, Operator, Object>() {
@@ -148,6 +159,10 @@ public class RestService {
 
 		@Override
 		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source) {
+			if (source == null) {
+				return null;
+			}
+
 			String query = (String) source;
 			String[] nameValuePairs = query.split("\\&");
 			List<ParameterMapping<String, Operator, Object>> parameterMappings = new LinkedList<ParameterMapping<String, Operator, Object>>();
@@ -198,6 +213,10 @@ public class RestService {
 
 		@Override
 		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source) {
+			if (source == null) {
+				return null;
+			}
+
 			HttpServletRequest httpServletRequest = (HttpServletRequest) source;
 
 			return queryParameterMapper.generateParameterMappings(httpServletRequest.getQueryString());
@@ -241,8 +260,15 @@ public class RestService {
 		}
 	};
 
+	private void setParameterMapperDefaults(ParameterMapper<String, Operator, Object> parameterMapper) {
+		parameterMapper.setFieldsParameterIdentifier(this.getUsableFieldsParameterName());
+		parameterMapper.setStartParameterIdentifier(this.getUsableStartParameterName());
+		parameterMapper.setLimitParameterIdentifier(this.getUsableLimitParameterName());
+	}
+
 	public RestRequest<PropertyDescriptor, Operator, Object> convert(String query, Class<?> clazz)
 			throws IntrospectionException, ParameterException, ConversionException {
+		this.setParameterMapperDefaults(queryParameterMapper);
 
 		return this.convert(query, clazz, queryParameterMapper, defaultTypeGenerator, searchCriteriaGenerator,
 				fieldMapper);
@@ -250,6 +276,7 @@ public class RestService {
 
 	public RestRequest<PropertyDescriptor, Operator, Object> convert(ServletRequest servletRequest, Class<?> clazz)
 			throws IntrospectionException, ParameterException, ConversionException {
+		this.setParameterMapperDefaults(servletRequestParameterMapper);
 
 		return this.convert(servletRequest, clazz, servletRequestParameterMapper, defaultTypeGenerator,
 				searchCriteriaGenerator, fieldMapper);
@@ -266,22 +293,34 @@ public class RestService {
 			SearchCriteriaGenerator<SCId, SCOp, SCVal> searchCriteriaGenerator, FieldMapper<SCId> fieldMapper)
 			throws IntrospectionException, ParameterException, ConversionException {
 
+		if (parameterMapper == null || typeGenerator == null || searchCriteriaGenerator == null
+				|| fieldMapper == null) {
+			return null;
+		}
+
 		RestRequest<SCId, SCOp, SCVal> restRequest = new RestRequest<SCId, SCOp, SCVal>();
 
 		List<ParameterMapping<PMId, PMOp, PMVal>> parameterMappings = parameterMapper.generateParameterMappings(object);
+		LOGGER.debug("fieldsParameterIdentifier: {}", parameterMapper.getFieldsParameterIdentifier());
 		restRequest.setSearchCriteria(
 				searchCriteriaGenerator.generateSearchCriteria(clazz, parameterMappings, typeGenerator));
 		restRequest.setFields(fieldMapper.generateFields(clazz, parameterMappings, typeGenerator,
 				parameterMapper.getFieldsParameterIdentifier()));
 
+		restRequest.setStart(getUsableStart());
+		restRequest.setLimit(getUsableLimit());
+
+		LOGGER.debug("startParameterIdentifier: {}", parameterMapper.getStartParameterIdentifier());
+		LOGGER.debug("limitParameterIdentifier: {}", parameterMapper.getLimitParameterIdentifier());
+
 		for (ParameterMapping<PMId, PMOp, PMVal> parameterMapping : parameterMappings) {
 			if (parameterMapping.getIdentifier().equals(parameterMapper.getStartParameterIdentifier())) {
-				restRequest.setStart(this.getUsableStart());
+				restRequest.setStart(typeGenerator.generateType(int.class, parameterMapping.getValue()));
 				break;
 			}
 
-			if (parameterMapping.getIdentifier().equals(parameterMapper.getStartParameterIdentifier())) {
-				restRequest.setLimit(this.getUsableLimit());
+			if (parameterMapping.getIdentifier().equals(parameterMapper.getLimitParameterIdentifier())) {
+				restRequest.setLimit(typeGenerator.generateType(int.class, parameterMapping.getValue()));
 			}
 		}
 
@@ -294,6 +333,21 @@ public class RestService {
 
 	private int getUsableLimit() {
 		return this.limit == null ? defaultLimit : this.limit;
+	}
+
+	private String getUsableFieldsParameterName() {
+		return (this.fieldsParameterName == null || this.fieldsParameterName.isEmpty()) ? defaultFieldsParameterName
+				: this.fieldsParameterName;
+	}
+
+	private String getUsableStartParameterName() {
+		return (this.startParameterName == null || this.startParameterName.isEmpty()) ? defaultStartParameterName
+				: this.startParameterName;
+	}
+
+	private String getUsableLimitParameterName() {
+		return (this.limitParameterName == null || this.limitParameterName.isEmpty()) ? defaultLimitParameterName
+				: this.limitParameterName;
 	}
 
 	public void setDefaultTypeGenerator(TypeGenerator defaultTypeGenerator) {
@@ -324,11 +378,51 @@ public class RestService {
 		this.start = start;
 	}
 
-	public int getLimit() {
-		return limit;
+	public String getFieldsParameterName() {
+		return fieldsParameterName;
 	}
 
-	public void setLimit(int limit) {
+	public void setFieldsParameterName(String fieldsParameterName) {
+		this.fieldsParameterName = fieldsParameterName;
+	}
+
+	public String getStartParameterName() {
+		return startParameterName;
+	}
+
+	public void setStartParameterName(String startParameterName) {
+		this.startParameterName = startParameterName;
+	}
+
+	public String getLimitParameterName() {
+		return limitParameterName;
+	}
+
+	public void setLimitParameterName(String limitParameterName) {
+		this.limitParameterName = limitParameterName;
+	}
+
+	public FieldMapper<PropertyDescriptor> getFieldMapper() {
+		return fieldMapper;
+	}
+
+	public SearchCriteriaGenerator<PropertyDescriptor, Operator, Object> getSearchCriteriaGenerator() {
+		return searchCriteriaGenerator;
+	}
+
+	public ParameterMapper<String, Operator, Object> getQueryParameterMapper() {
+		return queryParameterMapper;
+	}
+
+	public ParameterMapper<String, Operator, Object> getServletRequestParameterMapper() {
+		return servletRequestParameterMapper;
+	}
+
+	public void setStart(Integer start) {
+		this.start = start;
+	}
+
+	public void setLimit(Integer limit) {
 		this.limit = limit;
 	}
 
