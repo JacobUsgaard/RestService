@@ -3,3 +3,4 @@ Trying to create a library for converting rest requests into a more search frien
 
 TODO:
   Add relationships
+  More test cases
