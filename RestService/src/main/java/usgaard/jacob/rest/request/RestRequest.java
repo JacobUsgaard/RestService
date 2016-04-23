@@ -1,29 +1,23 @@
 package usgaard.jacob.rest.request;
 
-import java.beans.PropertyDescriptor;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import usgaard.jacob.rest.FieldMapper.Sort;
+
 /**
  * @author Jacob
  *
  */
-public class RestRequest {
-	public enum Sort {
-		ASCENDING, DESCENDING;
-	}
-
-	public enum Operator {
-		EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
-	}
+public class RestRequest<Identifier, Operator, Value> {
 
 	private Sort sort = Sort.ASCENDING;
 	private int start = 0;
 	private int limit = 10;
-	private Map<PropertyDescriptor, Sort> fields = new HashMap<PropertyDescriptor, Sort>();
-	private List<SearchCriterion> searchCriteria = new LinkedList<SearchCriterion>();
+	private Map<Identifier, Sort> fields = new HashMap<Identifier, Sort>();
+	private List<SearchCriterion<Identifier, Operator, Value>> searchCriteria = new LinkedList<SearchCriterion<Identifier, Operator, Value>>();
 
 	public Sort getSort() {
 		return sort;
@@ -49,20 +43,19 @@ public class RestRequest {
 		this.limit = limit;
 	}
 
-	public Map<PropertyDescriptor, Sort> getFields() {
+	public Map<Identifier, Sort> getFields() {
 		return fields;
 	}
 
-	public void setFields(Map<PropertyDescriptor, Sort> fields) {
+	public void setFields(Map<Identifier, Sort> fields) {
 		this.fields = fields;
 	}
 
-	public List<SearchCriterion> getSearchCriteria() {
+	public List<SearchCriterion<Identifier, Operator, Value>> getSearchCriteria() {
 		return searchCriteria;
 	}
 
-	public void setSearchCriteria(List<SearchCriterion> searchCriteria) {
+	public void setSearchCriteria(List<SearchCriterion<Identifier, Operator, Value>> searchCriteria) {
 		this.searchCriteria = searchCriteria;
 	}
-
 }
