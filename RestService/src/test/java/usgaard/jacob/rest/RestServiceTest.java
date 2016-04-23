@@ -21,7 +21,7 @@ public class RestServiceTest {
 		RestRequest<PropertyDescriptor, RestService.Operator, Object> restRequest = null;
 
 		try {
-			restRequest = restService.convert("age=10&name=Jacob Usgaard&fields=age+,name-&pi=3.14&limit=999",
+			restRequest = restService.convert("age>=10&name=Jacob Usgaard&fields=age+,name-&pi=3.14&limit=999",
 					MockObject.class);
 		} catch (Exception e) {
 			e.printStackTrace();

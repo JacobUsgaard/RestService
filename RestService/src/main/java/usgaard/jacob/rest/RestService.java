@@ -3,10 +3,12 @@ package usgaard.jacob.rest;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.servlet.ServletRequest;
@@ -17,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.exception.ParameterException;
+import usgaard.jacob.rest.request.OperatorMapping;
 import usgaard.jacob.rest.request.RestRequest;
 import usgaard.jacob.rest.request.SearchCriterion;
 
@@ -57,6 +60,17 @@ public class RestService {
 	private String fieldsParameterName = defaultFieldsParameterName;
 	private String startParameterName = defaultStartParameterName;
 	private String limitParameterName = defaultLimitParameterName;
+	private static List<OperatorMapping> operatorMappings = new ArrayList<OperatorMapping>() {
+		private static final long serialVersionUID = -8895872087917806097L;
+
+		{
+			add(new OperatorMapping(Pattern.compile("\\="), Operator.EQUAL));
+			add(new OperatorMapping(Pattern.compile("\\>"), Operator.GREATER_THAN));
+			add(new OperatorMapping(Pattern.compile("\\<"), Operator.LESS_THAN));
+			add(new OperatorMapping(Pattern.compile("\\>\\="), Operator.GREATER_THAN_OR_EQUAL));
+			add(new OperatorMapping(Pattern.compile("\\<\\="), Operator.LESS_THAN_OR_EQUAL));
+		}
+	};
 
 	public enum Operator {
 		EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
@@ -136,12 +150,20 @@ public class RestService {
 
 				SearchCriterion<PropertyDescriptor, Operator, Object> searchCriterion;
 				Id id = null;
+				Operator operator = null;
 				for (ParameterMapping<Id, Op, Val> parameterMapping : parameterMappings) {
 					id = parameterMapping.getIdentifier();
 
 					if (id instanceof String && id.equals(propertyName)) {
+
+						for (OperatorMapping operatorMapping : operatorMappings) {
+							if (operatorMapping.getOperator().equals(parameterMapping.getOperator())) {
+								operator = operatorMapping.getOperator();
+							}
+						}
+
 						searchCriterion = new SearchCriterion<PropertyDescriptor, RestService.Operator, Object>(
-								propertyDescriptor, Operator.EQUAL,
+								propertyDescriptor, operator,
 								typeGenerator.generateType(parameterType, parameterMapping.getValue()));
 						searchCriteria.add(searchCriterion);
 						LOGGER.debug("SearchValue found: {}, operator: {}, value: {}",
@@ -158,7 +180,8 @@ public class RestService {
 	private final ParameterMapper<String, Operator, Object> queryParameterMapper = new ParameterMapper<String, Operator, Object>() {
 
 		@Override
-		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source) {
+		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source)
+				throws ParameterException {
 			if (source == null) {
 				return null;
 			}
@@ -171,29 +194,42 @@ public class RestService {
 				return parameterMappings;
 			}
 
-			String[] nameValueArray;
 			String name;
 			Object value;
 			ParameterMapping<String, Operator, Object> parameterMapping;
 
-			Pattern pattern = Pattern.compile(".*=.*");
-
+			Matcher matcher;
 			for (String nameValuePair : nameValuePairs) {
-				nameValueArray = nameValuePair.split("\\=", 2);
+				parameterMapping = new ParameterMapping<String, Operator, Object>();
+				int maxLength = -1, currentLength, start = -1, end = -1;
+				for (OperatorMapping operatorMapping : operatorMappings) {
+					matcher = operatorMapping.getPattern().matcher(nameValuePair);
 
-				name = nameValueArray[0];
+					if (!matcher.find()) {
+						LOGGER.debug("operator {} does not match input string: {}", operatorMapping.getOperator(),
+								nameValuePair);
+						continue;
+					}
+
+					LOGGER.debug("operator {} matches input string: {}", operatorMapping.getOperator(), nameValuePair);
+					start = matcher.start();
+					end = matcher.end();
+					currentLength = end - start;
+					if (maxLength < currentLength) {
+						maxLength = currentLength;
+						parameterMapping.setOperator(operatorMapping.getOperator());
+					}
+				}
+
+				if (parameterMapping.getOperator() == null) {
+					throw new ParameterException("Unable to find operator for parameter: " + nameValuePair);
+				}
+
+				name = nameValuePair.substring(0, start);
+				value = nameValuePair.substring(end);
 
 				if (name == null) {
 					continue;
-				}
-
-				value = nameValueArray.length == 1 ? null : nameValueArray[1];
-
-				parameterMapping = new ParameterMapping<String, Operator, Object>();
-
-				if (pattern.matcher(nameValuePair).matches()) {
-					parameterMapping.setOperator(Operator.EQUAL);
-
 				}
 
 				LOGGER.debug("parameter mapped: {}, value: {}, operator: {}", name, value,
@@ -212,7 +248,8 @@ public class RestService {
 	private final ParameterMapper<String, Operator, Object> servletRequestParameterMapper = new ParameterMapper<String, Operator, Object>() {
 
 		@Override
-		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source) {
+		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source)
+				throws ParameterException {
 			if (source == null) {
 				return null;
 			}
@@ -370,14 +407,6 @@ public class RestService {
 		RestService.defaultLimit = defaultLimit;
 	}
 
-	public int getStart() {
-		return start;
-	}
-
-	public void setStart(int start) {
-		this.start = start;
-	}
-
 	public String getFieldsParameterName() {
 		return fieldsParameterName;
 	}
@@ -418,8 +447,16 @@ public class RestService {
 		return servletRequestParameterMapper;
 	}
 
+	public Integer getStart() {
+		return start;
+	}
+
 	public void setStart(Integer start) {
 		this.start = start;
+	}
+
+	public Integer getLimit() {
+		return limit;
 	}
 
 	public void setLimit(Integer limit) {

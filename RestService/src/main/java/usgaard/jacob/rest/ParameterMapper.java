@@ -2,6 +2,8 @@ package usgaard.jacob.rest;
 
 import java.util.List;
 
+import usgaard.jacob.rest.exception.ParameterException;
+
 /**
  * @author Jacob
  *
@@ -11,7 +13,8 @@ public abstract class ParameterMapper<Identifier, Operator, Value> {
 	private Identifier limitParameterIdentifier;
 	private Identifier fieldsParameterIdentifier;
 
-	public abstract List<ParameterMapping<Identifier, Operator, Value>> generateParameterMappings(Object source);
+	public abstract List<ParameterMapping<Identifier, Operator, Value>> generateParameterMappings(Object source)
+			throws ParameterException;
 
 	public Identifier getStartParameterIdentifier() {
 		return startParameterIdentifier;
