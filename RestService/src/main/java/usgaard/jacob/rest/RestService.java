@@ -76,7 +76,7 @@ public class RestService {
 		EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
 	}
 
-	private final FieldMapper<PropertyDescriptor> fieldMapper = new FieldMapper<PropertyDescriptor>() {
+	private static final FieldMapper<PropertyDescriptor> fieldMapper = new FieldMapper<PropertyDescriptor>() {
 
 		@Override
 		public <Id, Op, Val> Map<PropertyDescriptor, FieldMapper.Sort> generateFields(Class<?> clazz,
@@ -133,7 +133,7 @@ public class RestService {
 		}
 	};
 
-	private final SearchCriteriaGenerator<PropertyDescriptor, Operator, Object> searchCriteriaGenerator = new SearchCriteriaGenerator<PropertyDescriptor, Operator, Object>() {
+	private static final SearchCriteriaGenerator<PropertyDescriptor, Operator, Object> searchCriteriaGenerator = new SearchCriteriaGenerator<PropertyDescriptor, Operator, Object>() {
 
 		@Override
 		public <Id, Op, Val> List<SearchCriterion<PropertyDescriptor, Operator, Object>> generateSearchCriteria(
@@ -177,7 +177,7 @@ public class RestService {
 		}
 	};
 
-	private final ParameterMapper<String, Operator, Object> queryParameterMapper = new ParameterMapper<String, Operator, Object>() {
+	private static final ParameterMapper<String, Operator, Object> queryParameterMapper = new ParameterMapper<String, Operator, Object>() {
 
 		@Override
 		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source)
@@ -245,7 +245,7 @@ public class RestService {
 		}
 	};
 
-	private final ParameterMapper<String, Operator, Object> servletRequestParameterMapper = new ParameterMapper<String, Operator, Object>() {
+	private static final ParameterMapper<String, Operator, Object> servletRequestParameterMapper = new ParameterMapper<String, Operator, Object>() {
 
 		@Override
 		public List<ParameterMapping<String, Operator, Object>> generateParameterMappings(Object source)
