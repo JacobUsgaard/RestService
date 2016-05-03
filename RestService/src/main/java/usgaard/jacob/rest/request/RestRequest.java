@@ -1,9 +1,7 @@
 package usgaard.jacob.rest.request;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import usgaard.jacob.rest.FieldMapper.Sort;
 
@@ -13,10 +11,11 @@ import usgaard.jacob.rest.FieldMapper.Sort;
  */
 public class RestRequest<Identifier, Operator, Value> {
 
+	private Class<?> rootClass;
 	private Sort sort = Sort.ASCENDING;
 	private int start = 0;
 	private int limit = 10;
-	private Map<Identifier, Sort> fields = new HashMap<Identifier, Sort>();
+	private List<FieldMapping<Identifier>> fieldMappings = new LinkedList<FieldMapping<Identifier>>();
 	private List<SearchCriterion<Identifier, Operator, Value>> searchCriteria = new LinkedList<SearchCriterion<Identifier, Operator, Value>>();
 
 	public Sort getSort() {
@@ -43,12 +42,12 @@ public class RestRequest<Identifier, Operator, Value> {
 		this.limit = limit;
 	}
 
-	public Map<Identifier, Sort> getFields() {
-		return fields;
+	public List<FieldMapping<Identifier>> getFieldMappings() {
+		return fieldMappings;
 	}
 
-	public void setFields(Map<Identifier, Sort> fields) {
-		this.fields = fields;
+	public void setFieldMappings(List<FieldMapping<Identifier>> fieldMappings) {
+		this.fieldMappings = fieldMappings;
 	}
 
 	public List<SearchCriterion<Identifier, Operator, Value>> getSearchCriteria() {
@@ -57,5 +56,13 @@ public class RestRequest<Identifier, Operator, Value> {
 
 	public void setSearchCriteria(List<SearchCriterion<Identifier, Operator, Value>> searchCriteria) {
 		this.searchCriteria = searchCriteria;
+	}
+
+	public Class<?> getRootClass() {
+		return rootClass;
+	}
+
+	public void setRootClass(Class<?> rootClass) {
+		this.rootClass = rootClass;
 	}
 }

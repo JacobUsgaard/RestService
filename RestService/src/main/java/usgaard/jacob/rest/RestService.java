@@ -3,22 +3,30 @@ package usgaard.jacob.rest;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.servlet.ServletRequest;
 import javax.servlet.http.HttpServletRequest;
 
+import org.hibernate.Criteria;
+import org.hibernate.Session;
+import org.hibernate.criterion.Order;
+import org.hibernate.criterion.ProjectionList;
+import org.hibernate.criterion.Projections;
+import org.hibernate.criterion.Restrictions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import usgaard.jacob.rest.FieldMapper.Sort;
 import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.exception.ParameterException;
+import usgaard.jacob.rest.hibernate.CriteriaGenerator;
+import usgaard.jacob.rest.request.FieldMapping;
 import usgaard.jacob.rest.request.OperatorMapping;
 import usgaard.jacob.rest.request.RestRequest;
 import usgaard.jacob.rest.request.SearchCriterion;
@@ -79,10 +87,10 @@ public class RestService {
 	private static final FieldMapper<PropertyDescriptor> fieldMapper = new FieldMapper<PropertyDescriptor>() {
 
 		@Override
-		public <Id, Op, Val> Map<PropertyDescriptor, FieldMapper.Sort> generateFields(Class<?> clazz,
+		public <Id, Op, Val> List<FieldMapping<PropertyDescriptor>> generateFieldMappings(Class<?> clazz,
 				List<ParameterMapping<Id, Op, Val>> parameterMappings, TypeGenerator typeGenerator,
 				Id fieldParameterIdentifier) throws ConversionException, IntrospectionException {
-			Map<PropertyDescriptor, Sort> fieldsMap = new HashMap<PropertyDescriptor, Sort>();
+			List<FieldMapping<PropertyDescriptor>> fieldMappings = new LinkedList<FieldMapping<PropertyDescriptor>>();
 			PropertyDescriptor[] propertyDescriptors = Introspector.getBeanInfo(clazz).getPropertyDescriptors();
 
 			Val fieldsValue = null;
@@ -101,11 +109,11 @@ public class RestService {
 					if ("class".equals(propertyDescriptor.getName())) {
 						continue;
 					}
-					fieldsMap.put(propertyDescriptor, null);
+					fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor, null));
 					LOGGER.debug("Field found: {}, sort: {}", propertyDescriptor.getName(), null);
 				}
 
-				return fieldsMap;
+				return fieldMappings;
 			}
 
 			String fieldsParameterValue = typeGenerator.generateType(String.class, fieldsValue);
@@ -123,13 +131,13 @@ public class RestService {
 							sort = Sort.DESCENDING;
 						}
 
-						fieldsMap.put(propertyDescriptor, sort);
+						fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor, sort));
 						LOGGER.debug("Field found: {}, sort: {}", propertyDescriptor.getName(), sort);
 					}
 				}
 			}
 
-			return fieldsMap;
+			return fieldMappings;
 		}
 	};
 
@@ -206,12 +214,12 @@ public class RestService {
 					matcher = operatorMapping.getPattern().matcher(nameValuePair);
 
 					if (!matcher.find()) {
-						LOGGER.debug("operator {} does not match input string: {}", operatorMapping.getOperator(),
+						LOGGER.trace("operator {} does not match input string: {}", operatorMapping.getOperator(),
 								nameValuePair);
 						continue;
 					}
 
-					LOGGER.debug("operator {} matches input string: {}", operatorMapping.getOperator(), nameValuePair);
+					LOGGER.trace("operator {} matches input string: {}", operatorMapping.getOperator(), nameValuePair);
 					start = matcher.start();
 					end = matcher.end();
 					currentLength = end - start;
@@ -254,9 +262,7 @@ public class RestService {
 				return null;
 			}
 
-			HttpServletRequest httpServletRequest = (HttpServletRequest) source;
-
-			return queryParameterMapper.generateParameterMappings(httpServletRequest.getQueryString());
+			return queryParameterMapper.generateParameterMappings(((HttpServletRequest) source).getQueryString());
 		}
 	};
 
@@ -269,24 +275,28 @@ public class RestService {
 				return null;
 			}
 
-			if (clazz.equals(String.class)) {
+			if (String.class.equals(clazz)) {
 				return (T) object.toString();
 			}
 
-			if (clazz.equals(Integer.class) || clazz.equals(int.class)) {
+			if (Integer.class.equals(clazz) || int.class.equals(clazz)) {
 				return (T) new Integer(object.toString());
 			}
 
-			if (clazz.equals(Long.class) || clazz.equals(long.class)) {
+			if (Long.class.equals(clazz) || long.class.equals(clazz)) {
 				return (T) new Long(object.toString());
 			}
 
-			if (clazz.equals(Double.class) || clazz.equals(double.class)) {
+			if (Double.class.equals(clazz) || double.class.equals(clazz)) {
 				return (T) new Double(object.toString());
 			}
 
-			if (clazz.equals(Float.class) || clazz.equals(float.class)) {
+			if (Float.class.equals(clazz) || float.class.equals(clazz)) {
 				return (T) new Float(object.toString());
+			}
+
+			if (Boolean.class.equals(clazz) || boolean.class.equals(clazz)) {
+				return (T) new Boolean(object.toString());
 			}
 
 			if (clazz.equals(object.getClass())) {
@@ -295,6 +305,74 @@ public class RestService {
 
 			throw new ConversionException("Could not convert from: " + object.getClass() + " to: " + clazz);
 		}
+	};
+
+	private static CriteriaGenerator<PropertyDescriptor, Operator, Object> criteriaGenerator = new CriteriaGenerator<PropertyDescriptor, RestService.Operator, Object>() {
+
+		@Override
+		public Criteria generateCriteria(Session session,
+				RestRequest<PropertyDescriptor, Operator, Object> restRequest) {
+			if (session == null || !session.isOpen()) {
+				return null;
+			}
+
+			Criteria criteria = session.createCriteria(restRequest.getRootClass());
+
+			String propertyName;
+			Object value;
+			for (SearchCriterion<PropertyDescriptor, Operator, Object> searchCriterion : restRequest
+					.getSearchCriteria()) {
+				propertyName = searchCriterion.getIdentifier().getName();
+				value = searchCriterion.getValue();
+
+				switch (searchCriterion.getOperator()) {
+				case EQUAL:
+					criteria.add(Restrictions.eq(propertyName, value));
+					break;
+				case GREATER_THAN:
+					criteria.add(Restrictions.gt(propertyName, value));
+					break;
+				case GREATER_THAN_OR_EQUAL:
+					criteria.add(Restrictions.ge(propertyName, value));
+					break;
+				case LESS_THAN:
+					criteria.add(Restrictions.lt(propertyName, value));
+					break;
+				case LESS_THAN_OR_EQUAL:
+					criteria.add(Restrictions.le(propertyName, value));
+					break;
+				}
+			}
+
+			Sort sort;
+			ProjectionList projectionList = Projections.projectionList();
+			for (FieldMapping<PropertyDescriptor> fieldMapping : restRequest.getFieldMappings()) {
+				propertyName = fieldMapping.getIdentifier().getName();
+				sort = fieldMapping.getSort();
+
+				projectionList.add(Projections.property(propertyName));
+				LOGGER.debug("adding projection: {}", propertyName);
+
+				switch (sort) {
+				case ASCENDING:
+					criteria.addOrder(Order.asc(propertyName));
+					break;
+				case DESCENDING:
+					criteria.addOrder(Order.desc(propertyName));
+					break;
+				}
+
+				LOGGER.debug("adding order: {}", sort);
+			}
+
+			LOGGER.debug("projections: {}", projectionList.getLength());
+			criteria.setProjection(projectionList);
+			criteria.setFirstResult(restRequest.getStart());
+			criteria.setMaxResults(restRequest.getLimit());
+
+			return criteria;
+		}
+
 	};
 
 	private void setParameterMapperDefaults(ParameterMapper<String, Operator, Object> parameterMapper) {
@@ -319,15 +397,19 @@ public class RestService {
 				searchCriteriaGenerator, fieldMapper);
 	}
 
-	public <Id, Op, Val> RestRequest<PropertyDescriptor, Operator, Object> convert(Object object, Class<?> clazz,
-			ParameterMapper<Id, Op, Val> parameterMapper)
+	public <ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> RestRequest<PropertyDescriptor, Operator, Object> convert(
+			Object object, Class<?> clazz,
+			ParameterMapper<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> parameterMapper)
 			throws IntrospectionException, ParameterException, ConversionException {
 		return this.convert(object, clazz, parameterMapper, defaultTypeGenerator, searchCriteriaGenerator, fieldMapper);
 	}
 
-	public <SCId, SCOp, SCVal, PMId, PMOp, PMVal> RestRequest<SCId, SCOp, SCVal> convert(Object object, Class<?> clazz,
-			ParameterMapper<PMId, PMOp, PMVal> parameterMapper, TypeGenerator typeGenerator,
-			SearchCriteriaGenerator<SCId, SCOp, SCVal> searchCriteriaGenerator, FieldMapper<SCId> fieldMapper)
+	public <SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue, ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> RestRequest<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue> convert(
+			Object object, Class<?> clazz,
+			ParameterMapper<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> parameterMapper,
+			TypeGenerator typeGenerator,
+			SearchCriteriaGenerator<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue> searchCriteriaGenerator,
+			FieldMapper<SearchCriteriaId> fieldMapper)
 			throws IntrospectionException, ParameterException, ConversionException {
 
 		if (parameterMapper == null || typeGenerator == null || searchCriteriaGenerator == null
@@ -335,13 +417,16 @@ public class RestService {
 			return null;
 		}
 
-		RestRequest<SCId, SCOp, SCVal> restRequest = new RestRequest<SCId, SCOp, SCVal>();
+		RestRequest<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue> restRequest = new RestRequest<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue>();
 
-		List<ParameterMapping<PMId, PMOp, PMVal>> parameterMappings = parameterMapper.generateParameterMappings(object);
+		restRequest.setRootClass(clazz);
+
+		List<ParameterMapping<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue>> parameterMappings = parameterMapper
+				.generateParameterMappings(object);
 		LOGGER.debug("fieldsParameterIdentifier: {}", parameterMapper.getFieldsParameterIdentifier());
 		restRequest.setSearchCriteria(
 				searchCriteriaGenerator.generateSearchCriteria(clazz, parameterMappings, typeGenerator));
-		restRequest.setFields(fieldMapper.generateFields(clazz, parameterMappings, typeGenerator,
+		restRequest.setFieldMappings(fieldMapper.generateFieldMappings(clazz, parameterMappings, typeGenerator,
 				parameterMapper.getFieldsParameterIdentifier()));
 
 		restRequest.setStart(getUsableStart());
@@ -350,7 +435,7 @@ public class RestService {
 		LOGGER.debug("startParameterIdentifier: {}", parameterMapper.getStartParameterIdentifier());
 		LOGGER.debug("limitParameterIdentifier: {}", parameterMapper.getLimitParameterIdentifier());
 
-		for (ParameterMapping<PMId, PMOp, PMVal> parameterMapping : parameterMappings) {
+		for (ParameterMapping<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> parameterMapping : parameterMappings) {
 			if (parameterMapping.getIdentifier().equals(parameterMapper.getStartParameterIdentifier())) {
 				restRequest.setStart(typeGenerator.generateType(int.class, parameterMapping.getValue()));
 				break;
@@ -362,6 +447,34 @@ public class RestService {
 		}
 
 		return restRequest;
+	}
+
+	public <T> List<T> convert(String query, Class<T> clazz, Session session)
+			throws IntrospectionException, ParameterException, ConversionException, InstantiationException,
+			IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		RestRequest<PropertyDescriptor, Operator, Object> restRequest = this.convert(query, clazz);
+		Criteria criteria = criteriaGenerator.generateCriteria(session, restRequest);
+
+		@SuppressWarnings("unchecked")
+		List<Object[]> rows = criteria.list();
+
+		List<FieldMapping<PropertyDescriptor>> columns = restRequest.getFieldMappings();
+		List<T> list = new LinkedList<T>();
+		T object = null;
+		int count = 0;
+		for (Object[] row : rows) {
+			LOGGER.debug("entity mapping: {}", ++count);
+			object = clazz.newInstance();
+			for (int columnIndex = 0; columnIndex < row.length; columnIndex++) {
+				FieldMapping<PropertyDescriptor> column = columns.get(columnIndex);
+				column.getIdentifier().getWriteMethod().invoke(object, row[columnIndex]);
+				LOGGER.debug("placed column {} with value {}", column.getIdentifier().getName(), row[columnIndex]);
+			}
+
+			list.add(object);
+		}
+
+		return list;
 	}
 
 	private int getUsableStart() {

@@ -8,6 +8,10 @@ public class OperatorMapping {
 	private Pattern pattern;
 	private Operator operator;
 
+	public OperatorMapping() {
+		super();
+	}
+
 	public OperatorMapping(Pattern pattern, Operator operator) {
 		super();
 		this.pattern = pattern;

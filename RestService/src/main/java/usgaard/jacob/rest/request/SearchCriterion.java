@@ -5,6 +5,10 @@ public class SearchCriterion<Identifier, Operator, Value> {
 	private Operator operator;
 	private Value value;
 
+	public SearchCriterion() {
+		super();
+	}
+
 	public SearchCriterion(Identifier identifier, Operator operator, Value value) {
 		super();
 		this.identifier = identifier;
