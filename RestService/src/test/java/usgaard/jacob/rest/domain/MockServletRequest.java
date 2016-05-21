@@ -5,9 +5,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.Principal;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -27,12 +25,9 @@ import javax.servlet.http.HttpUpgradeHandler;
 import javax.servlet.http.Part;
 
 public class MockServletRequest implements HttpServletRequest {
-	private Map<String, String[]> parameters = new HashMap<String, String[]>();
 
 	public MockServletRequest() {
-		parameters.put("age", new String[] { "10" });
-		parameters.put("name", new String[] { "Jacob Usgaard" });
-		parameters.put("fields", new String[] { "age+,name-" });
+
 	}
 
 	@Override
@@ -77,21 +72,17 @@ public class MockServletRequest implements HttpServletRequest {
 
 	@Override
 	public String getParameter(String name) {
-		String[] parameterNames = this.parameters.get(name);
-		if (parameterNames != null) {
-			return parameterNames[0];
-		}
 		return null;
 	}
 
 	@Override
 	public Enumeration<String> getParameterNames() {
-		return Collections.enumeration(this.parameters.keySet());
+		return null;
 	}
 
 	@Override
 	public String[] getParameterValues(String name) {
-		return this.parameters.get(name);
+		return null;
 	}
 
 	@Override
@@ -294,7 +285,7 @@ public class MockServletRequest implements HttpServletRequest {
 	@Override
 	public String getQueryString() {
 		// TODO Auto-generated method stub
-		return "age=10&name=Jacob Usgaard&fields=age+,name-&start=99&limit=100";
+		return "age=10&name=Jacob Usgaard&fields=age,name&start=99&limit=100";
 	}
 
 	@Override
