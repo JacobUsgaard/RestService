@@ -22,12 +22,14 @@ import org.hibernate.criterion.Restrictions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import usgaard.jacob.rest.FieldMapper.Sort;
+import usgaard.jacob.rest.OrderMapper.Sort;
 import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.exception.ParameterException;
 import usgaard.jacob.rest.hibernate.CriteriaGenerator;
 import usgaard.jacob.rest.request.FieldMapping;
 import usgaard.jacob.rest.request.OperatorMapping;
+import usgaard.jacob.rest.request.OrderMapping;
+import usgaard.jacob.rest.request.ParameterMapping;
 import usgaard.jacob.rest.request.RestRequest;
 import usgaard.jacob.rest.request.SearchCriterion;
 
@@ -65,9 +67,11 @@ public class RestService {
 	private static String defaultFieldsParameterName = "fields";
 	private static String defaultStartParameterName = "start";
 	private static String defaultLimitParameterName = "limit";
+	private static String defaultOrderParameterName = "order";
 	private String fieldsParameterName = defaultFieldsParameterName;
 	private String startParameterName = defaultStartParameterName;
 	private String limitParameterName = defaultLimitParameterName;
+	private String orderParameterName = defaultOrderParameterName;
 	private static List<OperatorMapping> operatorMappings = new ArrayList<OperatorMapping>() {
 		private static final long serialVersionUID = -8895872087917806097L;
 
@@ -109,8 +113,8 @@ public class RestService {
 					if ("class".equals(propertyDescriptor.getName())) {
 						continue;
 					}
-					fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor, null));
-					LOGGER.debug("Field found: {}, sort: {}", propertyDescriptor.getName(), null);
+					fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor));
+					LOGGER.debug("Field found: {}", propertyDescriptor.getName());
 				}
 
 				return fieldMappings;
@@ -121,24 +125,62 @@ public class RestService {
 
 			for (String field : fields) {
 				for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
-					String propertyName = field.replaceAll("(\\+|\\-)", "");
 
-					if (propertyName.equalsIgnoreCase(propertyDescriptor.getName())) {
-						Sort sort = null;
-						if (field.endsWith("+")) {
-							sort = Sort.ASCENDING;
-						} else if (field.endsWith("-")) {
-							sort = Sort.DESCENDING;
-						}
+					if (field.equalsIgnoreCase(propertyDescriptor.getName())) {
 
-						fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor, sort));
-						LOGGER.debug("Field found: {}, sort: {}", propertyDescriptor.getName(), sort);
+						fieldMappings.add(new FieldMapping<PropertyDescriptor>(propertyDescriptor));
+						LOGGER.debug("Field found: {}", propertyDescriptor.getName());
 					}
 				}
 			}
 
 			return fieldMappings;
 		}
+	};
+
+	private static final OrderMapper<PropertyDescriptor> orderMapper = new OrderMapper<PropertyDescriptor>() {
+
+		@Override
+		public <Id, Op, Val> List<OrderMapping<PropertyDescriptor>> generateOrderMappings(Class<?> clazz,
+				List<ParameterMapping<Id, Op, Val>> parameterMappings, TypeGenerator typeGenerator,
+				Id orderParameterIdentifier) throws IntrospectionException, ConversionException {
+			List<OrderMapping<PropertyDescriptor>> orderMappings = new LinkedList<OrderMapping<PropertyDescriptor>>();
+			Val orderValue = null;
+
+			for (ParameterMapping<Id, Op, Val> parameterMapping : parameterMappings) {
+				if (parameterMapping.getIdentifier().equals(orderParameterIdentifier)) {
+					orderValue = parameterMapping.getValue();
+					break;
+				}
+			}
+
+			if (orderValue == null) {
+				return orderMappings;
+			}
+
+			String fieldsParameterValue = typeGenerator.generateType(String.class, orderValue);
+			String[] orders = fieldsParameterValue.split(",");
+
+			for (String order : orders) {
+				for (PropertyDescriptor propertyDescriptor : Introspector.getBeanInfo(clazz).getPropertyDescriptors()) {
+					String propertyName = order.replaceAll("(\\+|\\-)", "");
+
+					if (propertyName.equalsIgnoreCase(propertyDescriptor.getName())) {
+						Sort sort = null;
+						if (order.endsWith("+")) {
+							sort = Sort.ASCENDING;
+						} else if (order.endsWith("-")) {
+							sort = Sort.DESCENDING;
+						}
+
+						orderMappings.add(new OrderMapping<PropertyDescriptor>(propertyDescriptor, sort));
+						LOGGER.debug("Order found: {}, sort: {}", propertyDescriptor.getName(), sort);
+					}
+				}
+			}
+			return orderMappings;
+		}
+
 	};
 
 	private static final SearchCriteriaGenerator<PropertyDescriptor, Operator, Object> searchCriteriaGenerator = new SearchCriteriaGenerator<PropertyDescriptor, Operator, Object>() {
@@ -344,25 +386,33 @@ public class RestService {
 				}
 			}
 
-			Sort sort;
 			ProjectionList projectionList = Projections.projectionList();
 			for (FieldMapping<PropertyDescriptor> fieldMapping : restRequest.getFieldMappings()) {
 				propertyName = fieldMapping.getIdentifier().getName();
-				sort = fieldMapping.getSort();
 
 				projectionList.add(Projections.property(propertyName));
 				LOGGER.debug("adding projection: {}", propertyName);
+			}
+
+			for (OrderMapping<PropertyDescriptor> orderMapping : restRequest.getOrderMappings()) {
+				Sort sort = orderMapping.getSort();
+				if (sort == null) {
+					continue;
+				}
+
+				propertyName = orderMapping.getIdentifier().getName();
 
 				switch (sort) {
 				case ASCENDING:
 					criteria.addOrder(Order.asc(propertyName));
 					break;
+
 				case DESCENDING:
 					criteria.addOrder(Order.desc(propertyName));
 					break;
 				}
 
-				LOGGER.debug("adding order: {}", sort);
+				LOGGER.debug("adding order: {}, {}", propertyName, sort);
 			}
 
 			LOGGER.debug("projections: {}", projectionList.getLength());
@@ -379,6 +429,7 @@ public class RestService {
 		parameterMapper.setFieldsParameterIdentifier(this.getUsableFieldsParameterName());
 		parameterMapper.setStartParameterIdentifier(this.getUsableStartParameterName());
 		parameterMapper.setLimitParameterIdentifier(this.getUsableLimitParameterName());
+		parameterMapper.setOrderParameterIdentifier(this.getUsabledOrderParameterName());
 	}
 
 	public RestRequest<PropertyDescriptor, Operator, Object> convert(String query, Class<?> clazz)
@@ -386,7 +437,7 @@ public class RestService {
 		this.setParameterMapperDefaults(queryParameterMapper);
 
 		return this.convert(query, clazz, queryParameterMapper, defaultTypeGenerator, searchCriteriaGenerator,
-				fieldMapper);
+				fieldMapper, orderMapper);
 	}
 
 	public RestRequest<PropertyDescriptor, Operator, Object> convert(ServletRequest servletRequest, Class<?> clazz)
@@ -394,14 +445,15 @@ public class RestService {
 		this.setParameterMapperDefaults(servletRequestParameterMapper);
 
 		return this.convert(servletRequest, clazz, servletRequestParameterMapper, defaultTypeGenerator,
-				searchCriteriaGenerator, fieldMapper);
+				searchCriteriaGenerator, fieldMapper, orderMapper);
 	}
 
 	public <ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> RestRequest<PropertyDescriptor, Operator, Object> convert(
 			Object object, Class<?> clazz,
 			ParameterMapper<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> parameterMapper)
 			throws IntrospectionException, ParameterException, ConversionException {
-		return this.convert(object, clazz, parameterMapper, defaultTypeGenerator, searchCriteriaGenerator, fieldMapper);
+		return this.convert(object, clazz, parameterMapper, defaultTypeGenerator, searchCriteriaGenerator, fieldMapper,
+				orderMapper);
 	}
 
 	public <SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue, ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> RestRequest<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue> convert(
@@ -409,7 +461,7 @@ public class RestService {
 			ParameterMapper<ParameterMapperIdentifier, ParameterMapperOperator, ParameterMapperValue> parameterMapper,
 			TypeGenerator typeGenerator,
 			SearchCriteriaGenerator<SearchCriteriaId, SearchCriteriaOperator, SearchCriteriaValue> searchCriteriaGenerator,
-			FieldMapper<SearchCriteriaId> fieldMapper)
+			FieldMapper<SearchCriteriaId> fieldMapper, OrderMapper<SearchCriteriaId> orderMapper)
 			throws IntrospectionException, ParameterException, ConversionException {
 
 		if (parameterMapper == null || typeGenerator == null || searchCriteriaGenerator == null
@@ -426,8 +478,12 @@ public class RestService {
 		LOGGER.debug("fieldsParameterIdentifier: {}", parameterMapper.getFieldsParameterIdentifier());
 		restRequest.setSearchCriteria(
 				searchCriteriaGenerator.generateSearchCriteria(clazz, parameterMappings, typeGenerator));
+
 		restRequest.setFieldMappings(fieldMapper.generateFieldMappings(clazz, parameterMappings, typeGenerator,
 				parameterMapper.getFieldsParameterIdentifier()));
+
+		restRequest.setOrderMappings(orderMapper.generateOrderMappings(clazz, parameterMappings, typeGenerator,
+				parameterMapper.getOrderParameterIdentifier()));
 
 		restRequest.setStart(getUsableStart());
 		restRequest.setLimit(getUsableLimit());
@@ -461,9 +517,7 @@ public class RestService {
 		List<FieldMapping<PropertyDescriptor>> columns = restRequest.getFieldMappings();
 		List<T> list = new LinkedList<T>();
 		T object = null;
-		int count = 0;
 		for (Object[] row : rows) {
-			LOGGER.debug("entity mapping: {}", ++count);
 			object = clazz.newInstance();
 			for (int columnIndex = 0; columnIndex < row.length; columnIndex++) {
 				FieldMapping<PropertyDescriptor> column = columns.get(columnIndex);
@@ -498,6 +552,11 @@ public class RestService {
 	private String getUsableLimitParameterName() {
 		return (this.limitParameterName == null || this.limitParameterName.isEmpty()) ? defaultLimitParameterName
 				: this.limitParameterName;
+	}
+
+	private String getUsabledOrderParameterName() {
+		return (this.orderParameterName == null || this.orderParameterName.isEmpty()) ? defaultOrderParameterName
+				: this.orderParameterName;
 	}
 
 	public void setDefaultTypeGenerator(TypeGenerator defaultTypeGenerator) {
@@ -574,6 +633,14 @@ public class RestService {
 
 	public void setLimit(Integer limit) {
 		this.limit = limit;
+	}
+
+	public String getOrderParameterName() {
+		return orderParameterName;
+	}
+
+	public void setOrderParameterName(String orderParameterName) {
+		this.orderParameterName = orderParameterName;
 	}
 
 }

@@ -3,8 +3,6 @@ package usgaard.jacob.rest.request;
 import java.util.LinkedList;
 import java.util.List;
 
-import usgaard.jacob.rest.FieldMapper.Sort;
-
 /**
  * @author Jacob
  *
@@ -12,19 +10,11 @@ import usgaard.jacob.rest.FieldMapper.Sort;
 public class RestRequest<Identifier, Operator, Value> {
 
 	private Class<?> rootClass;
-	private Sort sort = Sort.ASCENDING;
 	private int start = 0;
 	private int limit = 10;
 	private List<FieldMapping<Identifier>> fieldMappings = new LinkedList<FieldMapping<Identifier>>();
 	private List<SearchCriterion<Identifier, Operator, Value>> searchCriteria = new LinkedList<SearchCriterion<Identifier, Operator, Value>>();
-
-	public Sort getSort() {
-		return sort;
-	}
-
-	public void setSort(Sort sort) {
-		this.sort = sort;
-	}
+	private List<OrderMapping<Identifier>> orderMappings = new LinkedList<OrderMapping<Identifier>>();
 
 	public int getStart() {
 		return start;
@@ -64,5 +54,13 @@ public class RestRequest<Identifier, Operator, Value> {
 
 	public void setRootClass(Class<?> rootClass) {
 		this.rootClass = rootClass;
+	}
+
+	public List<OrderMapping<Identifier>> getOrderMappings() {
+		return orderMappings;
+	}
+
+	public void setOrderMappings(List<OrderMapping<Identifier>> orderMappings) {
+		this.orderMappings = orderMappings;
 	}
 }

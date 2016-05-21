@@ -31,10 +31,10 @@ public class RestServiceTest {
 		RestRequest<PropertyDescriptor, RestService.Operator, Object> restRequest = null;
 
 		try {
-			restRequest = restService.convert("age>=10&name=Jacob Usgaard&fields=age+,name-&pi=3.14&limit=999",
+			restRequest = restService.convert("age>=10&name=Jacob Usgaard&fields=age,name&pi=3.14&limit=999",
 					MockObject.class);
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOGGER.error("", e);
 			fail();
 		}
 
@@ -55,7 +55,7 @@ public class RestServiceTest {
 		try {
 			restRequest = restService.convert(servletRequest, MockObject.class);
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOGGER.error("", e);
 			fail();
 		}
 
@@ -77,6 +77,7 @@ public class RestServiceTest {
 		try {
 			session.beginTransaction();
 			session.saveOrUpdate(new MockObject("Jacob Usgaard", 25, 3.14f));
+			session.saveOrUpdate(new MockObject("John Smith", 45, 3.14f));
 			session.getTransaction().commit();
 
 			session.beginTransaction();
@@ -90,10 +91,10 @@ public class RestServiceTest {
 
 			session.getTransaction().commit();
 			session.beginTransaction();
-			mockObjects = restService.convert("age>=10&fields=age+,name-,pi+&limit=999", MockObject.class, session);
+			mockObjects = restService.convert("age>=10&fields=age,name,pi&limit=999", MockObject.class, session);
 			session.getTransaction().commit();
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOGGER.error("", e);
 			session.getTransaction().rollback();
 
 			fail();
@@ -110,7 +111,7 @@ public class RestServiceTest {
 	}
 
 	private SessionFactory buildSessionFactory() {
-		Configuration configuration = new Configuration().configure();
+		Configuration configuration = new Configuration().configure("hibernate-test.cfg.xml");
 		configuration.addAnnotatedClass(MockObject.class);
 		StandardServiceRegistryBuilder serviceRegistryBuilder = new StandardServiceRegistryBuilder();
 		serviceRegistryBuilder.applySettings(configuration.getProperties());

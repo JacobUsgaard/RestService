@@ -4,6 +4,7 @@ import java.beans.IntrospectionException;
 import java.util.List;
 
 import usgaard.jacob.rest.exception.ConversionException;
+import usgaard.jacob.rest.request.ParameterMapping;
 import usgaard.jacob.rest.request.SearchCriterion;
 
 public interface SearchCriteriaGenerator<Identifier, Operator, Value> {

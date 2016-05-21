@@ -5,11 +5,9 @@ import java.util.List;
 
 import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.request.FieldMapping;
+import usgaard.jacob.rest.request.ParameterMapping;
 
 public interface FieldMapper<Identifier> {
-	public enum Sort {
-		ASCENDING, DESCENDING;
-	}
 
 	public <Id, Op, Val> List<FieldMapping<Identifier>> generateFieldMappings(Class<?> clazz,
 			List<ParameterMapping<Id, Op, Val>> parameterMappings, TypeGenerator typeGenerator,
