@@ -1,4 +1,4 @@
-package usgaard.jacob.rest;
+package usgaard.jacob.rest.request;
 
 public class ParameterMapping<Identifier, Operator, Value> {
 	private Identifier identifier;
