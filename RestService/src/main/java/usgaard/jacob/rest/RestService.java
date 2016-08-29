@@ -45,12 +45,17 @@ import usgaard.jacob.rest.request.SearchCriterion;
  * <li><a href="#start">Start</a></li>
  * <li><a href="#limit">Limit</a></li>
  * <li><a href="#fields">Fields</a></li>
+ * <li><a href="search-criterion">Search Criterion</a></li>
  * </ol>
  * 
  * <h3 id="start">Start</h3>
+ * <p>This is meant for paging and marks the first entry to be brought back in the Rest Request. This field name can be overridden in the {@link ParameterMapper}.</p>
  * <h3 id="limit">Limit</h3>
+ * <p>This is meant for paging and marks the last entry to be brought back in the Rest Request. This field name can be overridden in the {@link ParameterMapper}.</p>
  * <h3 id="fields">Fields</h3>
- * 
+ * <p>This is used to specify which fields or properties are brought back in the response to save on unnecessary retrieval.</p>
+ * <h3 id="search-criterion">Search Criterion</a></li>
+ * <p></p>
  * 
  * @author Jacob
  * @see RestRequest
@@ -77,6 +82,7 @@ public class RestService {
 
 		{
 			add(new OperatorMapping(Pattern.compile("\\="), Operator.EQUAL));
+			add(new OperatorMapping(Pattern.compile("\\!\\="), Operator.NOT_EQUAL));
 			add(new OperatorMapping(Pattern.compile("\\>"), Operator.GREATER_THAN));
 			add(new OperatorMapping(Pattern.compile("\\<"), Operator.LESS_THAN));
 			add(new OperatorMapping(Pattern.compile("\\>\\="), Operator.GREATER_THAN_OR_EQUAL));
@@ -85,7 +91,7 @@ public class RestService {
 	};
 
 	public enum Operator {
-		EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
+		EQUAL, NOT_EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL;
 	}
 
 	private static final FieldMapper<PropertyDescriptor> fieldMapper = new FieldMapper<PropertyDescriptor>() {
@@ -382,6 +388,11 @@ public class RestService {
 					break;
 				case LESS_THAN_OR_EQUAL:
 					criteria.add(Restrictions.le(propertyName, value));
+					break;
+				case NOT_EQUAL:
+					criteria.add(Restrictions.ne(propertyName, value));
+					break;
+				default:
 					break;
 				}
 			}

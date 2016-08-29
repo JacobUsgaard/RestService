@@ -10,10 +10,10 @@ import usgaard.jacob.rest.request.ParameterMapping;
  *
  */
 public abstract class ParameterMapper<Identifier, Operator, Value> {
-	private Identifier startParameterIdentifier;
-	private Identifier limitParameterIdentifier;
-	private Identifier fieldsParameterIdentifier;
-	private Identifier orderParameterIdentifier;
+	protected Identifier startParameterIdentifier;
+	protected Identifier limitParameterIdentifier;
+	protected Identifier fieldsParameterIdentifier;
+	protected Identifier orderParameterIdentifier;
 
 	public abstract List<ParameterMapping<Identifier, Operator, Value>> generateParameterMappings(Object source)
 			throws ParameterException;

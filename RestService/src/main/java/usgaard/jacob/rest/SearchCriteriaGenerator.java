@@ -7,6 +7,14 @@ import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.request.ParameterMapping;
 import usgaard.jacob.rest.request.SearchCriterion;
 
+/**
+ * 
+ * @author Jacob
+ *
+ * @param <Identifier>
+ * @param <Operator>
+ * @param <Value>
+ */
 public interface SearchCriteriaGenerator<Identifier, Operator, Value> {
 	public <Id, Op, Val> List<SearchCriterion<Identifier, Operator, Value>> generateSearchCriteria(Class<?> clazz,
 			List<ParameterMapping<Id, Op, Val>> parameterMappings, TypeGenerator typeGenerator)

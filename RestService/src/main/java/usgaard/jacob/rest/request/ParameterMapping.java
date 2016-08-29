@@ -1,5 +1,18 @@
 package usgaard.jacob.rest.request;
 
+/**
+ * A simple mapping between an identifier, an operator, and a value. There are
+ * currently two types of parameter mappings: search criteria and fields.
+ * 
+ * @author Jacob
+ *
+ * @param <Identifier>
+ * @param <Operator>
+ * @param <Value>
+ * 
+ * @see SearchCriterion
+ * @see FieldMapping
+ */
 public class ParameterMapping<Identifier, Operator, Value> {
 	private Identifier identifier;
 	private Operator operator;

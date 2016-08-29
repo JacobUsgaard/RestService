@@ -1,5 +1,14 @@
 package usgaard.jacob.rest.request;
 
+/**
+ * A simple mapping between an identifier, an operator, and a value to be searched on.
+ * 
+ * @author Jacob
+ *
+ * @param <Identifier>
+ * @param <Operator>
+ * @param <Value>
+ */
 public class SearchCriterion<Identifier, Operator, Value> {
 	private Identifier identifier;
 	private Operator operator;

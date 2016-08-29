@@ -7,6 +7,12 @@ import usgaard.jacob.rest.exception.ConversionException;
 import usgaard.jacob.rest.request.FieldMapping;
 import usgaard.jacob.rest.request.ParameterMapping;
 
+/**
+ * 
+ * @author Jacob
+ *
+ * @param <Identifier>
+ */
 public interface FieldMapper<Identifier> {
 
 	public <Id, Op, Val> List<FieldMapping<Identifier>> generateFieldMappings(Class<?> clazz,

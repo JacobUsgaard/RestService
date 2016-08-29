@@ -4,6 +4,8 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
+ * Wrapper class for information contained in the original request.
+ * 
  * @author Jacob
  *
  */
